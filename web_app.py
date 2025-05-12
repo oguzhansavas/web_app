@@ -36,8 +36,8 @@ def main():
     )
     
     # Time selection
-    start_time = st.sidebar.time_input("Start Time", value=datetime.strptime("00:00", "%H:%M").time())
-    end_time = st.sidebar.time_input("End Time", value=datetime.strptime("23:00", "%H:%M").time())
+    start_time = st.sidebar.time_input("Start Time", value=datetime.strptime("00:00", "%H:%M").time(),step=timedelta(minutes=60))
+    end_time = st.sidebar.time_input("End Time", value=datetime.strptime("23:00", "%H:%M").time(),step=timedelta(minutes=60))
     
     # Format dates in ISO8601
     start_datetime = datetime.combine(start_date, start_time)
