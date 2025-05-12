@@ -7,6 +7,8 @@ import pytz
 from gql_client import GraphQLClient
 from methods import Methods
 
+st.set_page_config(layout="wide")
+
 def main():
     st.title("Time Series Viewer")
 
@@ -85,25 +87,45 @@ def main():
     if "df" in st.session_state:
         df = st.session_state.df
 
-        # Nan handling
-        nan_method = st.selectbox("Choose method to handle nan values (optional):",
-                                  ("None", "forward-fill", "backward-fill", "mean", "median"))
+        # Layout: DataFrame on the left, controls on the right
+        col1, col2 = st.columns([3, 3])  # Adjust ratio as needed
 
-        if nan_method != "None":
-            df_processor = Methods(data=df)
-            df = df_processor.nan_handling(method=nan_method)
+        with col1:
+            st.subheader("DataFrame")
+            st.dataframe(df, width=1000, height=500, use_container_width=True)
 
-        st.subheader("DataFrame")
-        st.dataframe(df, width=700)
+            # Nan handling
+            nan_method = st.selectbox("NaN Handling Method (optional):",
+                                      ("None", "forward-fill", "backward-fill", "mean", "median"))
 
-        # Add a download button
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            label="Download Data as CSV",
-            data=csv,
-            file_name="data.csv",
-            mime="text/csv"
-        )
+            if nan_method != "None":
+                df_processor = Methods(data=df)
+                df = df_processor.nan_handling(method=nan_method)
+                st.session_state.df = df  # Update the stored DataFrame
+            
+            st.markdown("---")
+
+        show_viz = st.checkbox("Show Visualization Options", value=False)
+
+        if show_viz:
+            with col2:
+                
+                st.subheader("Visualization")
+                # Line chart controls
+                numeric_columns = df.select_dtypes(include='number').columns.tolist()
+                selected_columns = st.multiselect("Line Chart Columns", numeric_columns)
+
+                if st.button("Create Line Chart"):
+                    if selected_columns:
+                        df_line_chart = df[selected_columns]
+
+                        if df_line_chart.dropna(how="all").empty:
+                            st.warning("Selected columns contain only NaN values.")
+                        else:
+                            st.line_chart(df_line_chart, height=400, use_container_width=True)
+                    else:
+                        st.warning("Please select at least one numeric column.")
+
 
 if __name__ == "__main__":
     main()
