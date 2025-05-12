@@ -3,8 +3,9 @@ import pandas as pd
 from datetime import datetime, timedelta
 import pytz
  
-# Make sure to import your existing client code:
+# Make sure to import other scripts:
 from gql_client import GraphQLClient
+from methods import nan_handling
  
 def main():
     st.title("Time Series Viewer")
@@ -76,6 +77,14 @@ def main():
                 st.success("Data fetched successfully!")
                 # Display the DataFrame in a table
                 st.dataframe(df)
+
+                # Nan handling
+                nan_method = st.selectbox("Choose method to handle nan values.",
+                             ("forward-fill", "backward-fill", "mean", "median"))
+                nan_handling(data=df, method=nan_method)
+                # Display the updated df
+                st.dataframe(df)
+
             else:
                 st.warning("No data returned for given parameters.")
         else:

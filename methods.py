@@ -5,22 +5,43 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class methods():
+class Methods:
     def __init__(self) -> None:
         pass
 
-
-    def nan_handling(self, data, method):
+    def nan_handling(self, data, method='forward-fill'):
         """
-        NaN handling based on user preference.
+        Handles NaN values in numerical columns based on the specified method.
+        
         Args:
-            data    (df) : Dataframe containing fetched time series data.
-            method  (str): Prefered method to handle nans. 
+            data    (pd.DataFrame): DataFrame with potential NaN values.
+            method  (str): Method to handle NaNs. Options:
+                           'forward-fill', 'backward-fill', 'mean', 'median'
+
         Returns:
-            pd.DataFrame: DataFrame with all the nans handled.
+            pd.DataFrame: DataFrame with NaNs handled.
         """
-        if not data:
-            logger.error("Invalid dataframe.")
+        if not isinstance(data, pd.DataFrame):
+            logger.error("Provided data is not a valid DataFrame.")
             return None
-        
-        
+
+        numeric_cols = data.select_dtypes(include='number').columns
+        data = data.copy()
+
+        for col in numeric_cols:
+            if data[col].isnull().any():
+                logger.info(f"Handling NaNs in column '{col}' using method '{method}'.")
+
+                if method == 'forward-fill':
+                    data[col] = data[col].fillna(method='ffill')
+                elif method == 'backward-fill':
+                    data[col] = data[col].fillna(method='bfill')
+                elif method == 'mean':
+                    data[col] = data[col].fillna(data[col].mean())
+                elif method == 'median':
+                    data[col] = data[col].fillna(data[col].median())
+                else:
+                    logger.error(f"Unsupported NaN handling method: {method}")
+                    return None
+
+        return data
