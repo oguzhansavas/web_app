@@ -6,10 +6,21 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class Methods:
-    def __init__(self) -> None:
-        pass
+    def __init__(self, data: pd.DataFrame):
+        """
+        Initialize the Methods class with a DataFrame.
+        
+        Args:
+            data (pd.DataFrame): DataFrame to be processed.
+        """
+        if not isinstance(data, pd.DataFrame):
+            logger.error("Provided data is not a valid DataFrame.")
+            raise ValueError("Data must be a pandas DataFrame.")
+        
+        self.data = data
 
-    def nan_handling(self, data, method='forward-fill'):
+
+    def nan_handling(self, method='forward-fill'):
         """
         Handles NaN values in numerical columns based on the specified method.
         
@@ -21,12 +32,8 @@ class Methods:
         Returns:
             pd.DataFrame: DataFrame with NaNs handled.
         """
-        if not isinstance(data, pd.DataFrame):
-            logger.error("Provided data is not a valid DataFrame.")
-            return None
-
-        numeric_cols = data.select_dtypes(include='number').columns
-        data = data.copy()
+        numeric_cols = self.data.select_dtypes(include='number').columns
+        data = self.data.copy()
 
         for col in numeric_cols:
             if data[col].isnull().any():
