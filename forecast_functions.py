@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import holidays
 import lightgbm as lgb
 from sklearn.metrics import mean_absolute_error
 
@@ -19,22 +20,29 @@ class LightGBMQuantileForecaster:
         return forecast_df
 
 
-    def create_features(self, df):
+
+    def create_features(self, df, country='US'):
         # Ensure index is datetime
         if not isinstance(df.index, pd.DatetimeIndex):
             df.index = pd.to_datetime(df.index)
-            
+        
         # Create time-based features
         df['hour'] = df.index.hour
         df['dayofweek'] = df.index.dayofweek
         df['month'] = df.index.month
         df['is_weekend'] = df['dayofweek'].isin([5, 6]).astype(int)
-        
-        # Create lag features for target column
+
+        # Create public holiday feature
+        years = df.index.year.unique()
+        years = list(set(years))  # ensure no duplicates
+        holiday_dates = holidays.CountryHoliday(country, years=years)
+        df['is_holiday'] = df.index.date.astype('O').isin(holiday_dates).astype(int)
+
+        # Lag features
         for lag in self.lags:
             df[f'{self.target_column}_lag_{lag}'] = df[self.target_column].shift(lag)
         df[f'{self.target_column}_rolling_mean_24'] = df[self.target_column].shift(1).rolling(window=24).mean()
-        
+
         return df
 
 
