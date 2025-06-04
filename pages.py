@@ -3,6 +3,7 @@ import pandas as pd
 from methods import Methods
 from datetime import datetime, timedelta
 import pytz
+from forecast_functions import LightGBMQuantileForecaster  # <-- Add this import
 
 def time_series_viewer():
     st.title("Time Series Viewer")
@@ -60,15 +61,44 @@ def forecasting_page():
     if "original_df" not in st.session_state:
         st.warning("Please fetch data from the Time Series Viewer tab first.")
     else:
-        # Get the current dataframe (with or without NaN handling)
         df = st.session_state.get('df', st.session_state.original_df)
         
-        # Check if there are any NaN values
         if df.isna().any().any():
             st.warning("Please handle NaN values in the Time Series Viewer tab before proceeding with forecasting.")
         else:
             st.write("Please select which time series you would like to forecast.")
-            st.selectbox("Select Time Series", df.columns.tolist())
+            target_column = st.selectbox("Select Time Series", df.columns.tolist())
+            
+            # Let user pick forecast start date
+            min_date = df.index.min()
+            max_date = df.index.max()
+            min_forecast_start = min_date + pd.Timedelta(hours=168)
+            if min_forecast_start > max_date:
+                st.warning("Not enough data for forecasting (need at least 168 hours of history).")
+                return
+            forecast_start = st.date_input(
+                "Select Forecast Start Date",
+                value=max_date,
+                min_value=min_forecast_start,
+                max_value=max_date
+            )
+            # Convert to datetime if needed
+            if isinstance(df.index, pd.DatetimeIndex):
+                forecast_start_dt = pd.to_datetime(forecast_start)
+            else:
+                forecast_start_dt = pd.to_datetime(forecast_start)
+            
+            if st.button("Run Forecast"):
+                # Prepare and run the forecaster
+                forecaster = LightGBMQuantileForecaster()
+                try:
+                    forecaster.train(df, target_column, forecast_start_dt)
+                    forecast_df = forecaster.predict(df, target_column)
+                    st.success("Forecast completed!")
+                    st.line_chart(forecast_df[["q10", "q50", "q90"]])
+                    st.dataframe(forecast_df)  # Show the full forecast DataFrame
+                except Exception as e:
+                    st.error(f"Forecasting failed: {e}")
 
 def sidebar_query_params():
     st.sidebar.header("Query Parameters")

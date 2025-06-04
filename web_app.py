@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from gql_client import GraphQLClient
-from rest_client import RestClient
 from pages import time_series_viewer, forecasting_page, sidebar_query_params
 
 st.set_page_config(layout="wide")
@@ -17,15 +16,9 @@ def main():
     if fetch:
         codes = [code.strip() for code in codes_input.split(",")]
 
-        # client = GraphQLClient(
-        #     url="http://gtw.core-tst.aks.e21/graphql/",
-        #     schema="POWERNL",
-        #     api_key="3C0262DE-027E-48E8-B8BB-397B4CB54CF8"
-        # )
-
-        client = RestClient(
-            url="http://gtw.core-tst.aks.e21/time-series/api/v1.0",
-            schema="powernl",
+        client = GraphQLClient(
+            url="http://gtw.core-tst.aks.e21/graphql/",
+            schema="POWERNL",
             api_key="3C0262DE-027E-48E8-B8BB-397B4CB54CF8"
         )
 
