@@ -3,7 +3,7 @@ import pandas as pd
 from methods import Methods
 from datetime import datetime, timedelta
 import pytz
-from forecast_functions import LightGBMQuantileForecaster  # <-- Add this import
+from forecast_functions import LinearRegressionForecaster  # <-- Add this import
 
 def time_series_viewer():
     st.title("Time Series Viewer")
@@ -76,27 +76,36 @@ def forecasting_page():
             if min_forecast_start > max_date:
                 st.warning("Not enough data for forecasting (need at least 168 hours of history).")
                 return
+            # Calculate forecastable period: start is the day after max_date, end is up to 7 days after max_date
+            forecast_min = (max_date + pd.Timedelta(hours=1)).to_pydatetime()
+            forecast_max = (max_date + pd.Timedelta(days=7)).to_pydatetime()
+
             forecast_start = st.date_input(
                 "Select Forecast Start Date",
-                value=max_date,
-                min_value=min_forecast_start,
-                max_value=max_date
+                value=forecast_min.date(),
+                min_value=forecast_min.date(),
+                max_value=forecast_max.date()
             )
-            # Convert to datetime if needed
-            if isinstance(df.index, pd.DatetimeIndex):
-                forecast_start_dt = pd.to_datetime(forecast_start)
-            else:
-                forecast_start_dt = pd.to_datetime(forecast_start)
-            
+            forecast_end = st.date_input(
+                "Select Forecast End Date",
+                value=forecast_min.date(),
+                min_value=forecast_start,
+                max_value=forecast_max.date()
+            )
+            # Combine with time if needed, or default to 00:00
+            forecast_start_dt = pd.Timestamp.combine(forecast_start, pd.Timestamp("00:00").time())
+            forecast_end_dt = pd.Timestamp.combine(forecast_end, pd.Timestamp("23:00").time())
+
             if st.button("Run Forecast"):
-                # Prepare and run the forecaster
-                forecaster = LightGBMQuantileForecaster()
+                forecaster = LinearRegressionForecaster()
                 try:
+                    # Train on all available data
                     forecaster.train(df, target_column, forecast_start_dt)
-                    forecast_df = forecaster.predict(df, target_column)
+                    # Forecast for the period after the last data point
+                    forecast_df = forecaster.forecast(df, target_column, forecast_start_dt, forecast_end_dt)
                     st.success("Forecast completed!")
-                    st.line_chart(forecast_df[["q10", "q50", "q90"]])
-                    st.dataframe(forecast_df)  # Show the full forecast DataFrame
+                    st.line_chart(forecast_df[["prediction"]])
+                    st.dataframe(forecast_df)
                 except Exception as e:
                     st.error(f"Forecasting failed: {e}")
 
