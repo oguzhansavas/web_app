@@ -135,9 +135,9 @@ if __name__ == "__main__":
     )
     
     response = client.fetch_time_series(
-        codes=["GAS_METER_V2"],
-        start_period="2024-10-26T22:00:00.000Z",
-        end_period="2024-10-30T23:00:00.000Z"
+        codes=["NOMINT_3515000000044_GSEGLTTF"],
+        start_period="2024-01-06T00:00:00.000Z",
+        end_period="2024-01-09T23:00:00.000Z"
     )
     
     if response:

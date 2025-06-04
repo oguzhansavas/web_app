@@ -1,7 +1,10 @@
 import streamlit as st
 import pandas as pd
 from gql_client import GraphQLClient
+<<<<<<< HEAD
 from rest_client import RestClient
+=======
+>>>>>>> 183353e30ae445f1ffa0b3b239495cbef6e01eb3
 from pages import time_series_viewer, forecasting_page, sidebar_query_params
 
 st.set_page_config(layout="wide")
