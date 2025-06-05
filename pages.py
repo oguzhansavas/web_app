@@ -3,7 +3,8 @@ import pandas as pd
 from methods import Methods
 from datetime import datetime, timedelta
 import pytz
-from forecast_functions import LinearRegressionForecaster  # <-- Add this import
+import tzlocal
+from lgb_forecast import LightGBMQuantileForecaster 
 
 def time_series_viewer():
     st.title("Time Series Viewer")
@@ -74,21 +75,25 @@ def forecasting_page():
             max_date = df.index.max()
             min_forecast_start = min_date + pd.Timedelta(hours=168)
             if min_forecast_start > max_date:
-                st.warning("Not enough data for forecasting (need at least 168 hours of history).")
+                st.warning("Not enough data for forecasting (need at least 7 days of history).")
                 return
             # Calculate forecastable period: start is the day after max_date, end is up to 7 days after max_date
-            forecast_min = (max_date + pd.Timedelta(hours=1)).to_pydatetime()
+            forecast_min = (min_date + pd.Timedelta(days=7)).to_pydatetime()
             forecast_max = (max_date + pd.Timedelta(days=7)).to_pydatetime()
+
+            # Ensure default value is within bounds
+            default_start = max(forecast_min.date(), min(forecast_min.date(), forecast_max.date()))
+            default_end = max(default_start, min(forecast_max.date(), forecast_max.date()))
 
             forecast_start = st.date_input(
                 "Select Forecast Start Date",
-                value=forecast_min.date(),
+                value=default_start,
                 min_value=forecast_min.date(),
                 max_value=forecast_max.date()
             )
             forecast_end = st.date_input(
                 "Select Forecast End Date",
-                value=forecast_min.date(),
+                value=default_end,
                 min_value=forecast_start,
                 max_value=forecast_max.date()
             )
@@ -96,22 +101,39 @@ def forecasting_page():
             forecast_start_dt = pd.Timestamp.combine(forecast_start, pd.Timestamp("00:00").time())
             forecast_end_dt = pd.Timestamp.combine(forecast_end, pd.Timestamp("23:00").time())
 
+            # Ensure timezone consistency
+            if df.index.tz is not None:
+                if forecast_start_dt.tzinfo is None:
+                    forecast_start_dt = forecast_start_dt.tz_localize(df.index.tz)
+                else:
+                    forecast_start_dt = forecast_start_dt.tz_convert(df.index.tz)
+                if forecast_end_dt.tzinfo is None:
+                    forecast_end_dt = forecast_end_dt.tz_localize(df.index.tz)
+                else:
+                    forecast_end_dt = forecast_end_dt.tz_convert(df.index.tz)
+
             if st.button("Run Forecast"):
-                forecaster = LinearRegressionForecaster()
+                forecaster = LightGBMQuantileForecaster()
                 try:
-                    # Train on all available data
-                    forecaster.train(df, target_column, forecast_start_dt)
-                    # Forecast for the period after the last data point
-                    forecast_df = forecaster.forecast(df, target_column, forecast_start_dt, forecast_end_dt)
+                    # Train on all available data up to forecast_start_dt
+                    forecaster.fit(df, target_column, forecast_start_dt)
+                    # Predict for the entire DataFrame (including future, if appended)
+                    df_pred = forecaster.create_features(df, target_column)
+                    df_pred = df_pred.dropna()
+                    for q in forecaster.quantiles:
+                        df_pred[f"forecast_p{int(q*100)}"] = forecaster.models[q].predict(df_pred[forecaster.features])
+                    # Show only the forecast period
+                    forecast_df = df_pred[df_pred.index >= forecast_start_dt]
                     st.success("Forecast completed!")
-                    st.line_chart(forecast_df[["prediction"]])
+                    fig = forecaster.plot_forecast_plotly(forecast_df, target_column, forecaster.quantiles)
+                    st.plotly_chart(fig, use_container_width=True)
                     st.dataframe(forecast_df)
                 except Exception as e:
                     st.error(f"Forecasting failed: {e}")
 
 def sidebar_query_params():
     st.sidebar.header("Query Parameters")
-    codes_input = st.sidebar.text_input("Time Series Codes (comma-separated)", value="GAS_METER_V2")
+    codes_input = st.sidebar.text_input("Time Series Codes (comma-separated)", value="NOMINT_3515000000044_GSEGLTTF")
 
     st.sidebar.subheader("Date and Time Selection")
     today = datetime.now()
@@ -123,15 +145,22 @@ def sidebar_query_params():
     start_time = st.sidebar.time_input("Start Time", value=datetime.strptime("00:00", "%H:%M").time(), step=timedelta(minutes=60))
     end_time = st.sidebar.time_input("End Time", value=datetime.strptime("23:00", "%H:%M").time(), step=timedelta(minutes=60))
 
+    # Combine and localize to local timezone based on selected date, then convert to UTC
+    local_tz = tzlocal.get_localzone()
     start_datetime = datetime.combine(start_date, start_time)
     end_datetime = datetime.combine(end_date, end_time)
 
-    utc = pytz.UTC
-    start_iso = start_datetime.astimezone(utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    end_iso = end_datetime.astimezone(utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    start_datetime = start_datetime.replace(tzinfo=local_tz)
+    end_datetime = end_datetime.replace(tzinfo=local_tz)
 
-    st.sidebar.text(f"Start: {start_iso}")
-    st.sidebar.text(f"End: {end_iso}")
+    start_datetime_utc = start_datetime.astimezone(pytz.utc)
+    end_datetime_utc = end_datetime.astimezone(pytz.utc)
+
+    start_iso = start_datetime_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    end_iso = end_datetime_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    st.sidebar.text(f"Start (UTC): {start_iso}")
+    st.sidebar.text(f"End (UTC): {end_iso}")
 
     fetch = st.sidebar.button("Fetch Data")
 

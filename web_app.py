@@ -24,6 +24,7 @@ def main():
 
         with st.spinner("Fetching data..."):
             response = client.fetch_time_series(codes=codes, start_period=start_iso, end_period=end_iso)
+            # st.write("API raw response:", response)  # Debug print
 
         if response:
             df = client.to_dataframe(response)
